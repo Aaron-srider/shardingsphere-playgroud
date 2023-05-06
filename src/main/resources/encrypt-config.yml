@@ -1,0 +1,46 @@
+rules:
+  - !ENCRYPT
+    encryptors:
+      aes-encryptor:
+        type: AES
+        props:
+          aes-key-value: 123456abc
+    tables:
+      user1:
+        columns:
+          password:
+            plainColumn: password
+            cipherColumn: password_cipher
+            encryptorName: aes-encryptor
+      user2:
+        columns:
+          password:
+            plainColumn: password
+            cipherColumn: password_cipher
+            encryptorName: aes-encryptor
+          id_number:
+            plainColumn: id_number
+            cipherColumn: id_number_cipher
+            encryptorName: aes-encryptor
+      user3:
+        columns:
+          password:
+            plainColumn: password
+            cipherColumn: password_cipher
+            encryptorName: aes-encryptor
+          id_number:
+            plainColumn: id_number
+            cipherColumn: id_number_cipher
+            encryptorName: aes-encryptor
+          phone:
+            plainColumn: phone
+            cipherColumn: phone_cipher
+            encryptorName: aes-encryptor
+
+dataSources:
+  ds:
+    url: jdbc:mysql://localhost:33061/shardingsphere-encryption-playground
+    username: root
+    password: wc123456
+    driverClassName: com.mysql.cj.jdbc.Driver
+    dataSourceClassName: com.zaxxer.hikari.HikariDataSource

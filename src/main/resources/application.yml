@@ -1,0 +1,11 @@
+datasource-host: localhost
+datasource-port: 33061
+datasource-username: root
+datasource-password: wc123456
+datasource-db: shardingsphere-encryption-playground
+
+spring:
+  datasource:
+    url: jdbc:mysql://${datasource-host}:${datasource-port}/${datasource-db}?useUnicode=true&characterEncoding=UTF-8&useSSL=false
+    username: ${datasource-username}
+    password: ${datasource-password}
