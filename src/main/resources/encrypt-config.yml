@@ -2,7 +2,7 @@ rules:
   - !ENCRYPT
     encryptors:
       aes-encryptor:
-        type: AES
+        type: custom_aes_remote
         props:
           aes-key-value: 123456abc
     tables:
