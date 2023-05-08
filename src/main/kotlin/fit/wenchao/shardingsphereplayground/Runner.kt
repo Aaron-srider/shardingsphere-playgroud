@@ -5,10 +5,7 @@ import com.google.common.base.Preconditions
 import fit.wenchao.shardingsphereplayground.TestUnit
 import fit.wenchao.shardingsphereplayground.crypto.AesEncryptLocal
 import fit.wenchao.shardingsphereplayground.crypto.AesEncryptRemote
-import fit.wenchao.shardingsphereplayground.dao.mapper.User1Mapper
-import fit.wenchao.shardingsphereplayground.dao.mapper.User2Mapper
-import fit.wenchao.shardingsphereplayground.dao.mapper.User3Mapper
-import fit.wenchao.shardingsphereplayground.dao.mapper.UserMapper
+import fit.wenchao.shardingsphereplayground.dao.mapper.*
 import fit.wenchao.shardingsphereplayground.dao.po.User1PO
 import fit.wenchao.shardingsphereplayground.dao.po.User2PO
 import fit.wenchao.shardingsphereplayground.dao.po.User3PO
@@ -277,50 +274,95 @@ class Runner {
         )
     }
 
+    fun printRecordCount(count: Int) {
+        print("insert $count records\t\t")
+    }
 
-    fun looptest() {
+    fun aRound() {
+        cleanARound()
 
-        var conutbase = 1000
+        var conutbase = 10
+
+
+        var multiplers = mutableListOf<Int>(1, 10, 100, 1000,  10000, 50000)
+        // var multiplers = mutableListOf<Int>(1, 10)
+
 
         // test insert count through 10 base, 100 base, and 500 base
-        var insertCountList = mutableListOf<Int>(conutbase * 10, conutbase * 100, conutbase * 500)
+        var insertCountList = multiplers.map { it * conutbase }.toMutableList()
 
-        // // for 0 encrypted entity
-        // insertCountList.forEach {
-        //     stopwatch {
-        //         for (i in 0 until it) {
-        //             insertAUserPO()
-        //         }
-        //     }
-        // }
+
+        println(" compare group ")
+        // for 0 encrypted entity
+        insertCountList.forEach {
+            printRecordCount(it)
+            stopwatch {
+                for (i in 0 until it) {
+                    insertAUserPO()
+                }
+            }
+        }
+
+        println(" 1 field encryption group ")
 
         // for 1 encrypted entity
         insertCountList.forEach {
+            printRecordCount(it)
             stopwatch {
                 for (i in 0 until it) {
                     insertAUser1PO()
                 }
             }
         }
-
-
+        println(" 2 field encryption group ")
         // for 2 encrypted entity
         insertCountList.forEach {
+            printRecordCount(it)
             stopwatch {
                 for (i in 0 until it) {
                     insertAUser2PO()
                 }
             }
         }
-
+        println(" 3 field encryption group ")
         // for 3 encrypted entity
         insertCountList.forEach {
+            printRecordCount(it)
             stopwatch {
                 for (i in 0 until it) {
                     insertAUser3PO()
                 }
             }
         }
+
+
+
+    }
+
+    @Autowired
+    lateinit var wholeMapper: WholeMapper
+
+    private fun cleanARound() {
+        userMapper.truncate()
+        user1Mapper.truncate()
+        user2Mapper.truncate()
+        user3Mapper.truncate()
+    }
+
+
+    fun looptest() {
+
+
+        var expTimes = 3
+
+        for(i in 0 until expTimes){
+            println("=============================================== round $i ===============================================")
+            aRound()
+            println()
+        }
+
+
+
     }
 
     @PostConstruct

@@ -53,7 +53,7 @@ class AesEncryptLocal : AesEncrypt {
 }
 
 class AesEncryptRemote : AesEncrypt {
-    val address = "http://172.27.224.241:8080"
+    val address = "http://172.27.128.127:8080"
     val client = OkHttpClient()
     override fun encrypt(transformation: String, key: ByteArray, iv: ByteArray, message: ByteArray): ByteArray {
         val requestEncrypt = Request.Builder()
