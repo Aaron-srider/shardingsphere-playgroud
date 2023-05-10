@@ -1,2 +1,4 @@
 fit.wenchao.shardingsphereplayground.CustomLocalEncryptAlgorithm
 fit.wenchao.shardingsphereplayground.CustomRemoteEncryptAlgorithm
+fit.wenchao.shardingsphereplayground.HsmEncryptAlgorithm
+

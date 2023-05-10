@@ -2,10 +2,13 @@ package fit.wenchao.shardingsphereplayground
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper
 import com.google.common.base.Preconditions
+import com.ndsec.jce.provider.NDSecProvider
 import fit.wenchao.shardingsphereplayground.TestUnit
-import fit.wenchao.shardingsphereplayground.crypto.AesEncryptLocal
-import fit.wenchao.shardingsphereplayground.crypto.AesEncryptRemote
-import fit.wenchao.shardingsphereplayground.dao.mapper.*
+import fit.wenchao.shardingsphereplayground.crypto.*
+import fit.wenchao.shardingsphereplayground.dao.mapper.User1Mapper
+import fit.wenchao.shardingsphereplayground.dao.mapper.User2Mapper
+import fit.wenchao.shardingsphereplayground.dao.mapper.User3Mapper
+import fit.wenchao.shardingsphereplayground.dao.mapper.UserMapper
 import fit.wenchao.shardingsphereplayground.dao.po.User1PO
 import fit.wenchao.shardingsphereplayground.dao.po.User2PO
 import fit.wenchao.shardingsphereplayground.dao.po.User3PO
@@ -19,12 +22,12 @@ import org.springframework.stereotype.Component
 import java.lang.reflect.Field
 import java.nio.charset.StandardCharsets
 import java.security.GeneralSecurityException
+import java.security.Security
 import java.util.*
 import javax.annotation.PostConstruct
 import javax.crypto.Cipher
 import javax.crypto.spec.SecretKeySpec
 import fit.wenchao.shardingsphereplayground.TestUnit as TestUnit1
-
 
 class CustomLocalEncryptAlgorithm : StandardEncryptAlgorithm<Any?, String?> {
     private val log = KotlinLogging.logger {}
@@ -33,7 +36,7 @@ class CustomLocalEncryptAlgorithm : StandardEncryptAlgorithm<Any?, String?> {
 
     private lateinit var secretKey: ByteArray
 
-    var aes = AesEncryptLocal()
+    var aes = SymmEncryptLocal()
 
     override fun init(props: Properties) {
         this.props = props
@@ -52,7 +55,8 @@ class CustomLocalEncryptAlgorithm : StandardEncryptAlgorithm<Any?, String?> {
             } else {
                 val result =
                     aes.encrypt(
-                        "AES",
+                        CipherName.AES.toString(),
+                        Transformation.AES_CBC_PKCS5Padding.toString(),
                         secretKey,
                         ByteArray(16),
                         plainValue.toString().toByteArray(StandardCharsets.UTF_8)
@@ -71,7 +75,14 @@ class CustomLocalEncryptAlgorithm : StandardEncryptAlgorithm<Any?, String?> {
             if (null == cipherValue) {
                 null
             } else {
-                val result = getCipher(Cipher.DECRYPT_MODE).doFinal(Base64.getDecoder().decode(cipherValue))
+                val result = aes.decrypt(
+                    CipherName.AES.toString(),
+                    Transformation.AES_CBC_PKCS5Padding.toString(),
+                    secretKey,
+                    ByteArray(16),
+                    Base64.getDecoder().decode(cipherValue)
+                )
+
                 val plaintext = String(result, StandardCharsets.UTF_8)
                 // log.info { "decrypt ${cipherValue} to ${plaintext}" }
                 plaintext
@@ -108,7 +119,7 @@ class CustomRemoteEncryptAlgorithm : StandardEncryptAlgorithm<Any?, String?> {
 
     private lateinit var secretKey: ByteArray
 
-    var aes = AesEncryptRemote()
+    var aes = SymmEncryptRemote()
 
     override fun init(props: Properties) {
         this.props = props
@@ -128,6 +139,7 @@ class CustomRemoteEncryptAlgorithm : StandardEncryptAlgorithm<Any?, String?> {
                 val result =
                     aes.encrypt(
                         "AES",
+                        "AES/CBC/PKCS5Padding",
                         secretKey,
                         ByteArray(16),
                         plainValue.toString().toByteArray(StandardCharsets.UTF_8)
@@ -175,6 +187,98 @@ class CustomRemoteEncryptAlgorithm : StandardEncryptAlgorithm<Any?, String?> {
     }
 }
 
+
+class HsmEncryptAlgorithm : StandardEncryptAlgorithm<Any?, String?> {
+    private val log = KotlinLogging.logger {}
+
+    private var props: Properties? = null
+
+    private lateinit var secretKey: ByteArray
+
+    private lateinit var alg: String
+
+    var aes: SymmEncrypt
+
+    init {
+        HsmManagement.loadHsmProvider(
+            "htls://172.27.128.209:5000",
+            "lib/ndsec_sdf_client-generic_client-20230115.pfx",
+            "gc-20230115-0x007d"
+        )
+
+        println("HSM provider loaded")
+
+        var symm = SymmEncryptNdsecImpl()
+        symm.provider = Security.getProvider(NDSecProvider.getProviderName())
+        this.aes = symm
+    }
+
+    override fun init(props: Properties) {
+        this.props = props
+
+        Preconditions.checkArgument(props.containsKey("key-value"), "%s can not be null.", "key-value")
+        Preconditions.checkArgument(props.containsKey("alg"), "%s can not be null.", "alg")
+        secretKey = Arrays.copyOf(DigestUtils.sha1(props.getProperty("key-value")), 16)
+        alg = props.getProperty("alg")
+    }
+
+    override fun encrypt(plainValue: Any?, encryptContext: EncryptContext): String? {
+        return try {
+            if (null == plainValue) {
+                null
+            } else {
+                val result =
+                    aes.encrypt(
+                        alg,
+                        "${alg}/${Mode.CBC}/${Padding.NoPadding}",
+                        secretKey,
+                        ByteArray(16),
+                        plainValue.toString().toByteArray(StandardCharsets.UTF_8)
+                    )
+                val encodeToString = Base64.getEncoder().encodeToString(result)
+                // log.info { "encrypt ${plainValue} to ${encodeToString}" }
+                encodeToString
+            }
+        } catch (var4: GeneralSecurityException) {
+            throw var4
+        }
+    }
+
+    override fun decrypt(cipherValue: String?, encryptContext: EncryptContext): Any? {
+        return try {
+            if (null == cipherValue) {
+                null
+            } else {
+                val result =
+                    aes.encrypt(
+                        alg,
+                        "${alg}/${Mode.CBC}/${Padding.NoPadding}",
+                        secretKey,
+                        ByteArray(16),
+                        Base64.getDecoder().decode(cipherValue)
+                    )
+                val plaintext = String(result, StandardCharsets.UTF_8)
+                // log.info { "decrypt ${cipherValue} to ${plaintext}" }
+                plaintext
+            }
+        } catch (var4: GeneralSecurityException) {
+            throw var4
+        }
+    }
+
+    override fun getType(): String {
+        return "hsm_symm_remote"
+    }
+
+    override fun getProps(): Properties {
+        return props!!
+    }
+
+    companion object {
+        private const val AES_KEY = "aes-key-value"
+    }
+}
+
 fun randomString(length: Int, charset: String): String {
     val random = Random()
     val sb = StringBuilder(length)
@@ -194,17 +298,13 @@ fun stopwatch(func: () -> Unit) {
 }
 
 
-fun printOnOneLine(number: Int) {
-    print("\r$number")
-    System.out.flush()
-}
 
 fun fillStringProperties(obj: Any) {
     val fields: List<Field> = obj.javaClass.declaredFields.toList()
 
     fields.filter { it.type == String::class.java && it.name != "id" }.forEach {
         it.isAccessible = true
-        it.set(obj, randomString(10, charset))
+        it.set(obj, randomString(16, charset))
     }
 }
 
@@ -284,7 +384,8 @@ class Runner {
         var conutbase = 10
 
 
-        var multiplers = mutableListOf<Int>(1, 10, 100, 1000,  10000, 50000)
+        // var multiplers = mutableListOf<Int>(1, 10, 100, 1000, 10000, 50000)
+        var multiplers = mutableListOf<Int>(1, 10, 100, 1000, 10000)
         // var multiplers = mutableListOf<Int>(1, 10)
 
 
@@ -335,12 +436,8 @@ class Runner {
             }
         }
 
-
-
     }
 
-    @Autowired
-    lateinit var wholeMapper: WholeMapper
 
     private fun cleanARound() {
         userMapper.truncate()
@@ -355,12 +452,11 @@ class Runner {
 
         var expTimes = 3
 
-        for(i in 0 until expTimes){
+        for (i in 0 until expTimes) {
             println("=============================================== round $i ===============================================")
             aRound()
             println()
         }
-
 
 
     }
@@ -369,4 +465,22 @@ class Runner {
     fun init() {
         looptest()
     }
+}
+
+interface VelocityRecord{
+    fun startPoint(startPoint :Long)
+
+    fun endPoint(endPoint:Long)
+
+}
+
+class VelocityRecordImpl: VelocityRecord{
+    override fun startPoint(startPoint: Long) {
+        TODO("Not yet implemented")
+    }
+
+    override fun endPoint(endPoint: Long) {
+        TODO("Not yet implemented")
+    }
+
 }

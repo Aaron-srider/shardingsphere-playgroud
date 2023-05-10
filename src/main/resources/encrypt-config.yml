@@ -2,9 +2,10 @@ rules:
   - !ENCRYPT
     encryptors:
       aes-encryptor:
-        type: custom_aes_remote
+        type: hsm_symm_remote
         props:
-          aes-key-value: 123456abc
+          alg: SM4
+          key-value: 123456abc
     tables:
       user1:
         columns:
