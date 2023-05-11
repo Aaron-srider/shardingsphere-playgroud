@@ -1,7 +1,12 @@
 package fit.wenchao.shardingsphereplayground
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper
+import com.ndsec.jce.provider.NDSecProvider
 import fit.wenchao.shardingsphereplayground.TestUnit
+import fit.wenchao.shardingsphereplayground.crypto.CipherName
+import fit.wenchao.shardingsphereplayground.crypto.HsmManagement
+import fit.wenchao.shardingsphereplayground.crypto.SymmEncryptNdsecImpl
+import fit.wenchao.shardingsphereplayground.crypto.Transformation
 import fit.wenchao.shardingsphereplayground.dao.mapper.User1Mapper
 import fit.wenchao.shardingsphereplayground.dao.mapper.User2Mapper
 import fit.wenchao.shardingsphereplayground.dao.mapper.User3Mapper
@@ -13,6 +18,7 @@ import fit.wenchao.shardingsphereplayground.dao.po.UserPO
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.stereotype.Component
 import java.lang.reflect.Field
+import java.security.Security
 import java.util.*
 import javax.annotation.PostConstruct
 import fit.wenchao.shardingsphereplayground.TestUnit as TestUnit1
@@ -191,10 +197,10 @@ class Runner {
                         userPO.phone = RandomDataSet.getRandomData(dataLength)
                         userPO.idNumber = RandomDataSet.getRandomData(dataLength)
                         userMapper.insert(userPO)
-                        userPO.id=null
-                        userPO.password=null
-                        userPO.phone=null
-                        userPO.idNumber=null
+                        userPO.id = null
+                        userPO.password = null
+                        userPO.phone = null
+                        userPO.idNumber = null
                     }
                 }
             }
@@ -209,10 +215,10 @@ class Runner {
                         user1PO.phone = RandomDataSet.getRandomData(dataLength)
                         user1PO.idNumber = RandomDataSet.getRandomData(dataLength)
                         user1Mapper.insert(user1PO)
-                        user1PO.id=null
-                        user1PO.password=null
-                        user1PO.phone=null
-                        user1PO.idNumber=null
+                        user1PO.id = null
+                        user1PO.password = null
+                        user1PO.phone = null
+                        user1PO.idNumber = null
                     }
                 }
             }
@@ -226,10 +232,10 @@ class Runner {
                         user2PO.phone = RandomDataSet.getRandomData(dataLength)
                         user2PO.idNumber = RandomDataSet.getRandomData(dataLength)
                         user2Mapper.insert(user2PO)
-                        user2PO.id=null
-                        user2PO.password=null
-                        user2PO.phone=null
-                        user2PO.idNumber=null
+                        user2PO.id = null
+                        user2PO.password = null
+                        user2PO.phone = null
+                        user2PO.idNumber = null
                     }
                 }
             }
@@ -243,10 +249,10 @@ class Runner {
                         user3PO.phone = RandomDataSet.getRandomData(dataLength)
                         user3PO.idNumber = RandomDataSet.getRandomData(dataLength)
                         user3Mapper.insert(user3PO)
-                        user3PO.id=null
-                        user3PO.password=null
-                        user3PO.phone=null
-                        user3PO.idNumber=null
+                        user3PO.id = null
+                        user3PO.password = null
+                        user3PO.phone = null
+                        user3PO.idNumber = null
                     }
                 }
             }
@@ -263,16 +269,102 @@ class Runner {
 
     fun looptest() {
 
+
         var expTimes = 3
+
+
 
         for (i in 0 until expTimes) {
             println("=============================================== round $i ===============================================")
-           aRound()
+            roundWithoutInsert()
             println()
         }
 
     }
 
+    fun roundWithoutInsert() {
+        HsmManagement.loadHsmProvider(
+            "htls://172.27.128.209:5000",
+            "lib/ndsec_sdf_client-generic_client-20230115.pfx",
+            "gc-20230115-0x007d"
+        )
+        println("HSM provider loaded")
+        var symm = SymmEncryptNdsecImpl()
+        symm.provider = Security.getProvider(NDSecProvider.getProviderName())
+
+        var key = "123456ab123456ab"
+        var keybytes = key.toByteArray()
+
+
+        cleanARound()
+
+        var conutbase = 10
+
+        // var multiplers = mutableListOf<Int>(1, 10, 100, 1000, 10000, 50000)
+        var multiplers = mutableListOf<Int>(100, 1000, 10000)
+        // var multiplers = mutableListOf<Int>(100)
+        // var multiplers = mutableListOf<Int>(1, 10)
+
+        // test insert count through 10 base, 100 base, and 500 base
+        var insertCountList = multiplers.map { it * conutbase }.toMutableList()
+
+        val supportLengthList = RandomDataSet.getSupportLengthList()
+
+        val userPO = UserPO()
+        val user1PO = User1PO()
+        val user2PO = User2PO()
+        val user3PO = User3PO()
+
+        for (dataLength in supportLengthList) {
+            println("=======> data length: $dataLength")
+
+            println(" compare group ")
+            // for 0 encrypted entity
+            insertCountList.forEach {
+                printRecordCount(it)
+                stopwatch {
+                    for (i in 0 until it) {
+                        userPO.password = RandomDataSet.getRandomData(dataLength)
+                        userPO.phone = RandomDataSet.getRandomData(dataLength)
+                        userPO.idNumber = RandomDataSet.getRandomData(dataLength)
+                        // do nothing
+                        userPO.id = null
+                        userPO.password = null
+                        userPO.phone = null
+                        userPO.idNumber = null
+                    }
+                }
+            }
+
+            println(" 1 field encryption group ")
+            // for 1 encrypted entity
+            insertCountList.forEach {
+                printRecordCount(it)
+                stopwatch {
+                    for (i in 0 until it) {
+                        user1PO.password = RandomDataSet.getRandomData(dataLength)
+                        user1PO.phone = RandomDataSet.getRandomData(dataLength)
+                        user1PO.idNumber = RandomDataSet.getRandomData(dataLength)
+                        symm.encrypt(
+                            CipherName.SM4.value, Transformation.SM4_CBC_NoPadding.toString(),
+                            keybytes, ByteArray(16), user1PO.password!!.toByteArray()
+                        )
+                        user1PO.id = null
+                        user1PO.password = null
+                        user1PO.phone = null
+                        user1PO.idNumber = null
+                    }
+                }
+            }
+        }
+    }
+
+    fun test() {
+        val user1PO = User1PO()
+        user1PO.password = "1234561234561234"
+        user1Mapper.insert(user1PO)
+
+    }
 
     @PostConstruct
     fun init() {
