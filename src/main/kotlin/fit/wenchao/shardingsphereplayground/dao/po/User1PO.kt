@@ -11,7 +11,9 @@ data class User1PO(
     var id: Int?,
     var username: String?,
     var password: String?,
+    var idNumber: String?,
+    var phone: String?,
 ) : Serializable {
     // default constructor
-    constructor() : this(null, null, null)
+    constructor() : this(null, null, null, null, null)
 }
